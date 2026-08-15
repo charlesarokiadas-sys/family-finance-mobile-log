@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Log Trade</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f1720">
+<style>
+  :root {
+    --bg: #0f1720;
+    --panel: #16212c;
+    --border: #263241;
+    --text: #e7edf3;
+    --muted: #8ea0b3;
+    --buy: #34d399;
+    --sell: #f87171;
+    --accent: #34d399;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    min-height: 100vh;
+    padding: env(safe-area-inset-top, 20px) 16px calc(env(safe-area-inset-bottom, 20px) + 16px);
+  }
+  header { padding: 12px 4px 20px; }
+  header h1 { font-size: 20px; margin: 0 0 2px; font-weight: 700; }
+  header p { margin: 0; color: var(--muted); font-size: 13px; }
+
+  form { display: flex; flex-direction: column; gap: 14px; }
+  label { font-size: 13px; color: var(--muted); font-weight: 600; display: block; margin-bottom: 6px; }
+  input, select, textarea {
+    width: 100%; background: var(--panel); border: 1px solid var(--border); color: var(--text);
+    border-radius: 12px; padding: 14px 14px; font-size: 16px; outline: none;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+
+  .row { display: flex; gap: 10px; }
+  .row > div { flex: 1; }
+
+  .side-toggle { display: flex; gap: 8px; }
+  .side-toggle button {
+    flex: 1; padding: 14px; border-radius: 12px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--muted); font-size: 15px; font-weight: 700;
+  }
+  .side-toggle button.active[data-side="BUY"] { background: var(--buy); color: #06251a; border-color: var(--buy); }
+  .side-toggle button.active[data-side="SELL"] { background: var(--sell); color: #2a0a0a; border-color: var(--sell); }
+
+  .amount-hint { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+  button.submit {
+    margin-top: 8px; padding: 16px; border-radius: 14px; border: none;
+    background: var(--accent); color: #06251a; font-size: 16px; font-weight: 800;
+  }
+  button.submit:disabled { opacity: 0.5; }
+
+  .status { margin-top: 14px; padding: 12px 14px; border-radius: 12px; font-size: 14px; display: none; }
+  .status.ok { display: block; background: #10301f; color: #6ee7b7; border: 1px solid #1f5a3c; }
+  .status.err { display: block; background: #3a1414; color: #fca5a5; border: 1px solid #6b1f1f; }
+
+  .setup-warning {
+    background: #3a2a10; border: 1px solid #6b4f1f; color: #fbbf24; border-radius: 12px;
+    padding: 12px 14px; font-size: 13px; margin-bottom: 16px; display: none;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Log a trade</h1>
+    <p>Family Finance — logged trades feed <code>data/transactions.csv</code> on next pull.</p>
+  </header>
+
+  <div id="setupWarning" class="setup-warning">
+    ⚠️ APPS_SCRIPT_URL isn't configured yet — edit the constant near the top of the
+    <code>&lt;script&gt;</code> block in this file after deploying the Apps Script Web App
+    (see <code>mobile/README.md</code>).
+  </div>
+
+  <form id="tradeForm">
+    <div class="row">
+      <div>
+        <label for="date">Date</label>
+        <input type="date" id="date" required>
+      </div>
+      <div>
+        <label>Side</label>
+        <div class="side-toggle">
+          <button type="button" data-side="BUY" class="active">BUY</button>
+          <button type="button" data-side="SELL">SELL</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label for="owner">Owner</label>
+        <select id="owner" required>
+          <option value="Charles">Charles</option>
+          <option value="Calvin">Calvin</option>
+          <option value="Punitha">Punitha</option>
+          <option value="Cassandra">Cassandra</option>
+        </select>
+      </div>
+      <div>
+        <label for="account">Account</label>
+        <select id="account" required>
+          <option value="ZV3166">ZV3166</option>
+          <option value="CE8866">CE8866</option>
+          <option value="MNS232">MNS232</option>
+        </select>
+      </div>
+    </div>
+
+    <div>
+      <label for="symbol">Symbol</label>
+      <input type="text" id="symbol" placeholder="e.g. HDFCBANK" autocapitalize="characters" required>
+    </div>
+
+    <div class="row">
+      <div>
+        <label for="qty">Quantity</label>
+        <input type="number" id="qty" inputmode="decimal" min="0" step="any" required>
+      </div>
+      <div>
+        <label for="price">Price / share</label>
+        <input type="number" id="price" inputmode="decimal" min="0" step="any" required>
+      </div>
+    </div>
+
+    <div>
+      <div class="amount-hint" id="amountHint">Amount: —</div>
+    </div>
+
+    <div>
+      <label for="notes">Notes (optional)</label>
+      <input type="text" id="notes" placeholder="e.g. loss-harvest, gold glide tranche 1">
+    </div>
+
+    <button type="submit" class="submit" id="submitBtn">Log trade</button>
+    <div class="status" id="status"></div>
+  </form>
+
+<script>
+  // --- Configure this after deploying the Apps Script Web App (see mobile/README.md) ---
+  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxtqAmUv2aa8FnZcjFY69Ew-q2GgBp-nBRjmaPEKsk_eWo6YgAHqZkCOJKwFcxEQNu6/exec";
+  const TOKEN = "g6nQUXtHyrRckjFvZ1ZVe6RTqigUJuGb4n5prNANqFE";
+  // ---------------------------------------------------------------------------------------
+
+  const OWNER_ACCOUNT = { Charles: "ZV3166", Calvin: "ZV3166", Punitha: "CE8866", Cassandra: "MNS232" };
+
+  const $ = (id) => document.getElementById(id);
+  const form = $("tradeForm");
+  const statusEl = $("status");
+  const setupWarning = $("setupWarning");
+
+  if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.startsWith("PASTE_")) {
+    setupWarning.style.display = "block";
+  }
+
+  // default date = today, in the phone's local time
+  $("date").value = new Date().toISOString().slice(0, 10);
+
+  let side = "BUY";
+  document.querySelectorAll(".side-toggle button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      side = btn.dataset.side;
+      document.querySelectorAll(".side-toggle button").forEach((b) => b.classList.toggle("active", b === btn));
+    });
+  });
+
+  $("owner").addEventListener("change", () => {
+    $("account").value = OWNER_ACCOUNT[$("owner").value] || $("account").value;
+  });
+
+  function updateAmount() {
+    const qty = parseFloat($("qty").value), price = parseFloat($("price").value);
+    $("amountHint").textContent = (qty > 0 && price > 0)
+      ? `Amount: ₹${(qty * price).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`
+      : "Amount: —";
+  }
+  $("qty").addEventListener("input", updateAmount);
+  $("price").addEventListener("input", updateAmount);
+
+  function showStatus(kind, msg) {
+    statusEl.className = "status " + kind;
+    statusEl.textContent = msg;
+  }
+
+  form.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const submitBtn = $("submitBtn");
+    const qty = parseFloat($("qty").value), price = parseFloat($("price").value);
+    const payload = {
+      token: TOKEN,
+      date: $("date").value,
+      owner: $("owner").value,
+      account: $("account").value,
+      symbol: $("symbol").value.trim().toUpperCase(),
+      side: side,
+      qty: qty,
+      price: price,
+      amount: qty * price,
+      notes: $("notes").value.trim(),
+    };
+
+    submitBtn.disabled = true;
+    showStatus("ok", "Submitting…");
+    try {
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },   // avoids a CORS preflight
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      showStatus("ok", `Logged: ${payload.side} ${payload.qty} ${payload.symbol} @${payload.price}`);
+      form.reset();
+      $("date").value = new Date().toISOString().slice(0, 10);
+      $("account").value = OWNER_ACCOUNT[$("owner").value];
+      side = "BUY";
+      document.querySelectorAll(".side-toggle button").forEach((b) => b.classList.toggle("active", b.dataset.side === "BUY"));
+      updateAmount();
+    } catch (err) {
+      showStatus("err", "Failed to submit — check your connection and try again. (" + err.message + ")");
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("service-worker.js").catch(() => {});
+  }
+</script>
+</body>
+</html>
