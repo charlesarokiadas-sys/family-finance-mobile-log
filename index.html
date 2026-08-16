@@ -100,6 +100,7 @@
         <div class="side-toggle" id="modeToggle">
           <button type="button" data-mode="trade" class="active">Trade</button>
           <button type="button" data-mode="emi">EMI payment</button>
+          <button type="button" data-mode="confirm">Confirm parked</button>
         </div>
       </div>
     </div>
@@ -194,6 +195,24 @@
       </div>
     </div>
 
+    <div id="confirmFields" style="display:none">
+      <div class="row">
+        <div>
+          <label for="confirmLoanId">Loan</label>
+          <select id="confirmLoanId">
+            <option value="A">Loan A (Axis liquid)</option>
+            <option value="B">Loan B (ICICI liquid)</option>
+          </select>
+        </div>
+        <div>
+          <label for="confirmAmount">Amount (optional — leave blank to confirm everything pending)</label>
+          <input type="number" id="confirmAmount" inputmode="decimal" min="0" step="any" placeholder="all pending">
+        </div>
+      </div>
+      <div class="amount-hint">Use this once you've actually moved the EMI cash into the liquid
+        fund — it moves it from "pending" to "parked" so it's counted as available to redeploy.</div>
+    </div>
+
     <div>
       <label for="notes">Notes (optional)</label>
       <input type="text" id="notes" placeholder="e.g. loss-harvest, gold glide tranche 1">
@@ -225,14 +244,17 @@
 
   const tradeFields = $("tradeFields");
   const emiFields = $("emiFields");
+  const confirmFields = $("confirmFields");
   const sideField = $("sideField");
   const submitBtn = $("submitBtn");
   let mode = "trade";
+  const SUBMIT_LABEL = { trade: "Log trade", emi: "Log EMI payment", confirm: "Confirm parked" };
   function updateModeVisibility() {
     tradeFields.style.display = mode === "trade" ? "block" : "none";
     sideField.style.display = mode === "trade" ? "block" : "none";
     emiFields.style.display = mode === "emi" ? "block" : "none";
-    submitBtn.textContent = mode === "trade" ? "Log trade" : "Log EMI payment";
+    confirmFields.style.display = mode === "confirm" ? "block" : "none";
+    submitBtn.textContent = SUBMIT_LABEL[mode];
   }
   document.querySelectorAll("#modeToggle button").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -319,7 +341,7 @@
                 : "",
       };
       successMsg = `Logged: ${payload.side} ${payload.qty} ${payload.symbol} @${payload.price}`;
-    } else {
+    } else if (mode === "emi") {
       payload = {
         token: TOKEN,
         action: "addEmiPayment",
@@ -328,6 +350,14 @@
         amount: $("emiAmount").value ? parseFloat($("emiAmount").value) : "",
       };
       successMsg = `Logged: Loan ${payload.loan_id} EMI paid ${payload.paid_date}`;
+    } else {
+      payload = {
+        token: TOKEN,
+        action: "confirmParked",
+        loan_id: $("confirmLoanId").value,
+        amount: $("confirmAmount").value ? parseFloat($("confirmAmount").value) : "",
+      };
+      successMsg = `Confirmed: Loan ${payload.loan_id} parked`;
     }
 
     submitBtn.disabled = true;
