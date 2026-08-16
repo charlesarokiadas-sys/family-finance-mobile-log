@@ -170,7 +170,7 @@
       <div class="loan-capital-row" id="loanCapitalRow">
         <label for="isLoanCapital">
           <input type="checkbox" id="isLoanCapital">
-          Funded by loan-capital parking
+          Funded by loan-capital parking (Punitha)
         </label>
         <select class="loan-capital-select" id="loanCapitalId">
           <option value="A">Loan A (Axis liquid)</option>
@@ -284,11 +284,13 @@
   const wintDeployRow = $("wintDeployRow");
   const backlogCRow = $("backlogCRow");
   const BACKLOG_C_OWNERS = ["Charles", "Punitha"];   // pooled rebuild -- only these two contribute
+  const PUNITHA_ONLY_OWNERS = ["Punitha"];   // both the loan-capital and Wint-interest pools are hers alone
   function updateReinvestVisibility() {
     const isBacklogCOwner = BACKLOG_C_OWNERS.includes($("owner").value);
+    const isPunithaOwner = PUNITHA_ONLY_OWNERS.includes($("owner").value);
     reinvestRow.style.display = side === "BUY" ? "block" : "none";
-    loanCapitalRow.style.display = side === "BUY" ? "block" : "none";
-    wintDeployRow.style.display = side === "BUY" ? "block" : "none";
+    loanCapitalRow.style.display = (side === "BUY" && isPunithaOwner) ? "block" : "none";
+    wintDeployRow.style.display = (side === "BUY" && isPunithaOwner) ? "block" : "none";
     backlogCRow.style.display = (side === "BUY" && isBacklogCOwner) ? "block" : "none";
     if (side !== "BUY") {
       $("isReinvest").checked = false;      // a SELL can't be a reinvestment
@@ -296,8 +298,15 @@
       $("isWintDeploy").checked = false;    // or a Wint-interest-pool deploy
       $("isBacklogC").checked = false;      // or a Backlog-C rebuild
       loanCapitalSelect.style.display = "none";
-    } else if (!isBacklogCOwner) {
-      $("isBacklogC").checked = false;      // Calvin/Cassandra never fund the pooled rebuild
+    } else {
+      if (!isPunithaOwner) {
+        $("isLoanCapital").checked = false;   // loan-capital/Wint pools are Punitha-only
+        $("isWintDeploy").checked = false;
+        loanCapitalSelect.style.display = "none";
+      }
+      if (!isBacklogCOwner) {
+        $("isBacklogC").checked = false;      // Calvin/Cassandra never fund the pooled rebuild
+      }
     }
   }
   // Only one funding-source tag per trade -- ticking one clears the others, since purpose is a
