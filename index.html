@@ -44,11 +44,12 @@
   input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   input[type="checkbox"] { width: 20px; height: 20px; flex: 0 0 auto; padding: 0; }
 
-  .reinvest-row { display: none; }
-  .reinvest-row label {
+  .reinvest-row, .loan-capital-row { display: none; }
+  .reinvest-row label, .loan-capital-row > label {
     display: flex; align-items: center; gap: 10px; margin-bottom: 0;
     font-size: 14px; color: var(--text); font-weight: 600; cursor: pointer;
   }
+  .loan-capital-select { display: none; margin-top: 10px; }
 
   .row { display: flex; gap: 10px; }
   .row > div { flex: 1; }
@@ -58,6 +59,7 @@
     flex: 1; padding: 14px; border-radius: 12px; border: 1px solid var(--border);
     background: var(--panel); color: var(--muted); font-size: 15px; font-weight: 700;
   }
+  .side-toggle button.active { background: var(--accent); color: #06251a; border-color: var(--accent); }
   .side-toggle button.active[data-side="BUY"] { background: var(--buy); color: #06251a; border-color: var(--buy); }
   .side-toggle button.active[data-side="SELL"] { background: var(--sell); color: #2a0a0a; border-color: var(--sell); }
 
@@ -94,10 +96,20 @@
   <form id="tradeForm">
     <div class="row">
       <div>
+        <label>Mode</label>
+        <div class="side-toggle" id="modeToggle">
+          <button type="button" data-mode="trade" class="active">Trade</button>
+          <button type="button" data-mode="emi">EMI payment</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
         <label for="date">Date</label>
         <input type="date" id="date" required>
       </div>
-      <div>
+      <div id="sideField">
         <label>Side</label>
         <div class="side-toggle">
           <button type="button" data-side="BUY" class="active">BUY</button>
@@ -106,51 +118,80 @@
       </div>
     </div>
 
-    <div class="row">
+    <div id="tradeFields">
+      <div class="row">
+        <div>
+          <label for="owner">Owner</label>
+          <select id="owner" required>
+            <option value="Charles">Charles</option>
+            <option value="Calvin">Calvin</option>
+            <option value="Punitha">Punitha</option>
+            <option value="Cassandra">Cassandra</option>
+          </select>
+        </div>
+        <div>
+          <label for="account">Account</label>
+          <select id="account" required>
+            <option value="ZV3166">ZV3166</option>
+            <option value="CE8866">CE8866</option>
+            <option value="MNS232">MNS232</option>
+          </select>
+        </div>
+      </div>
+
       <div>
-        <label for="owner">Owner</label>
-        <select id="owner" required>
-          <option value="Charles">Charles</option>
-          <option value="Calvin">Calvin</option>
-          <option value="Punitha">Punitha</option>
-          <option value="Cassandra">Cassandra</option>
+        <label for="symbol">Symbol</label>
+        <input type="text" id="symbol" placeholder="e.g. HDFCBANK" autocapitalize="characters">
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="qty">Quantity</label>
+          <input type="number" id="qty" inputmode="decimal" min="0" step="any">
+        </div>
+        <div>
+          <label for="price">Price / share</label>
+          <input type="number" id="price" inputmode="decimal" min="0" step="any">
+        </div>
+      </div>
+
+      <div>
+        <div class="amount-hint" id="amountHint">Amount: —</div>
+      </div>
+
+      <div class="reinvest-row" id="reinvestRow">
+        <label for="isReinvest">
+          <input type="checkbox" id="isReinvest">
+          Dividend reinvestment buy
+        </label>
+      </div>
+
+      <div class="loan-capital-row" id="loanCapitalRow">
+        <label for="isLoanCapital">
+          <input type="checkbox" id="isLoanCapital">
+          Funded by loan-capital parking
+        </label>
+        <select class="loan-capital-select" id="loanCapitalId">
+          <option value="A">Loan A (Axis liquid)</option>
+          <option value="B">Loan B (ICICI liquid)</option>
         </select>
       </div>
-      <div>
-        <label for="account">Account</label>
-        <select id="account" required>
-          <option value="ZV3166">ZV3166</option>
-          <option value="CE8866">CE8866</option>
-          <option value="MNS232">MNS232</option>
-        </select>
+    </div>
+
+    <div id="emiFields" style="display:none">
+      <div class="row">
+        <div>
+          <label for="loanId">Loan</label>
+          <select id="loanId">
+            <option value="A">Loan A (Axis liquid)</option>
+            <option value="B">Loan B (ICICI liquid)</option>
+          </select>
+        </div>
+        <div>
+          <label for="emiAmount">Amount (optional override)</label>
+          <input type="number" id="emiAmount" inputmode="decimal" min="0" step="any" placeholder="standard EMI">
+        </div>
       </div>
-    </div>
-
-    <div>
-      <label for="symbol">Symbol</label>
-      <input type="text" id="symbol" placeholder="e.g. HDFCBANK" autocapitalize="characters" required>
-    </div>
-
-    <div class="row">
-      <div>
-        <label for="qty">Quantity</label>
-        <input type="number" id="qty" inputmode="decimal" min="0" step="any" required>
-      </div>
-      <div>
-        <label for="price">Price / share</label>
-        <input type="number" id="price" inputmode="decimal" min="0" step="any" required>
-      </div>
-    </div>
-
-    <div>
-      <div class="amount-hint" id="amountHint">Amount: —</div>
-    </div>
-
-    <div class="reinvest-row" id="reinvestRow">
-      <label for="isReinvest">
-        <input type="checkbox" id="isReinvest">
-        Dividend reinvestment buy
-      </label>
     </div>
 
     <div>
@@ -182,18 +223,54 @@
   // default date = today, in the phone's local time
   $("date").value = new Date().toISOString().slice(0, 10);
 
+  const tradeFields = $("tradeFields");
+  const emiFields = $("emiFields");
+  const sideField = $("sideField");
+  const submitBtn = $("submitBtn");
+  let mode = "trade";
+  function updateModeVisibility() {
+    tradeFields.style.display = mode === "trade" ? "block" : "none";
+    sideField.style.display = mode === "trade" ? "block" : "none";
+    emiFields.style.display = mode === "emi" ? "block" : "none";
+    submitBtn.textContent = mode === "trade" ? "Log trade" : "Log EMI payment";
+  }
+  document.querySelectorAll("#modeToggle button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      mode = btn.dataset.mode;
+      document.querySelectorAll("#modeToggle button").forEach((b) => b.classList.toggle("active", b === btn));
+      updateModeVisibility();
+    });
+  });
+
   const reinvestRow = $("reinvestRow");
+  const loanCapitalRow = $("loanCapitalRow");
+  const loanCapitalSelect = $("loanCapitalId");
   function updateReinvestVisibility() {
     reinvestRow.style.display = side === "BUY" ? "block" : "none";
-    if (side !== "BUY") $("isReinvest").checked = false;   // a SELL can't be a reinvestment
+    loanCapitalRow.style.display = side === "BUY" ? "block" : "none";
+    if (side !== "BUY") {
+      $("isReinvest").checked = false;      // a SELL can't be a reinvestment
+      $("isLoanCapital").checked = false;   // or a loan-capital deploy
+      loanCapitalSelect.style.display = "none";
+    }
   }
+  // Only one funding-source tag per trade -- ticking one clears the other, since purpose is a
+  // single value (dividend_reinvest vs loan_capital_A/B can't both be true for the same BUY).
+  $("isReinvest").addEventListener("change", () => {
+    if ($("isReinvest").checked) $("isLoanCapital").checked = false;
+    loanCapitalSelect.style.display = $("isLoanCapital").checked ? "block" : "none";
+  });
+  $("isLoanCapital").addEventListener("change", () => {
+    if ($("isLoanCapital").checked) $("isReinvest").checked = false;
+    loanCapitalSelect.style.display = $("isLoanCapital").checked ? "block" : "none";
+  });
 
   let side = "BUY";
   updateReinvestVisibility();
-  document.querySelectorAll(".side-toggle button").forEach((btn) => {
+  document.querySelectorAll("#sideField .side-toggle button").forEach((btn) => {
     btn.addEventListener("click", () => {
       side = btn.dataset.side;
-      document.querySelectorAll(".side-toggle button").forEach((b) => b.classList.toggle("active", b === btn));
+      document.querySelectorAll("#sideField .side-toggle button").forEach((b) => b.classList.toggle("active", b === btn));
       updateReinvestVisibility();
     });
   });
@@ -218,21 +295,40 @@
 
   form.addEventListener("submit", async (ev) => {
     ev.preventDefault();
-    const submitBtn = $("submitBtn");
-    const qty = parseFloat($("qty").value), price = parseFloat($("price").value);
-    const payload = {
-      token: TOKEN,
-      date: $("date").value,
-      owner: $("owner").value,
-      account: $("account").value,
-      symbol: $("symbol").value.trim().toUpperCase(),
-      side: side,
-      qty: qty,
-      price: price,
-      amount: qty * price,
-      notes: $("notes").value.trim(),
-      purpose: (side === "BUY" && $("isReinvest").checked) ? "dividend_reinvest" : "",
-    };
+
+    let payload, successMsg;
+    if (mode === "trade") {
+      if (!$("symbol").value.trim()) {
+        showStatus("err", "Symbol is required.");
+        return;
+      }
+      const qty = parseFloat($("qty").value), price = parseFloat($("price").value);
+      payload = {
+        token: TOKEN,
+        date: $("date").value,
+        owner: $("owner").value,
+        account: $("account").value,
+        symbol: $("symbol").value.trim().toUpperCase(),
+        side: side,
+        qty: qty,
+        price: price,
+        amount: qty * price,
+        notes: $("notes").value.trim(),
+        purpose: (side === "BUY" && $("isReinvest").checked) ? "dividend_reinvest"
+                : (side === "BUY" && $("isLoanCapital").checked) ? "loan_capital_" + loanCapitalSelect.value
+                : "",
+      };
+      successMsg = `Logged: ${payload.side} ${payload.qty} ${payload.symbol} @${payload.price}`;
+    } else {
+      payload = {
+        token: TOKEN,
+        action: "addEmiPayment",
+        loan_id: $("loanId").value,
+        paid_date: $("date").value,
+        amount: $("emiAmount").value ? parseFloat($("emiAmount").value) : "",
+      };
+      successMsg = `Logged: Loan ${payload.loan_id} EMI paid ${payload.paid_date}`;
+    }
 
     submitBtn.disabled = true;
     showStatus("ok", "Submitting…");
@@ -244,12 +340,13 @@
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      showStatus("ok", `Logged: ${payload.side} ${payload.qty} ${payload.symbol} @${payload.price}`);
+      showStatus("ok", successMsg);
       form.reset();
       $("date").value = new Date().toISOString().slice(0, 10);
       $("account").value = OWNER_ACCOUNT[$("owner").value];
       side = "BUY";
-      document.querySelectorAll(".side-toggle button").forEach((b) => b.classList.toggle("active", b.dataset.side === "BUY"));
+      document.querySelectorAll("#sideField .side-toggle button").forEach((b) => b.classList.toggle("active", b.dataset.side === "BUY"));
+      loanCapitalSelect.style.display = "none";   // form.reset() unchecks isLoanCapital but fires no 'change' event
       updateReinvestVisibility();
       updateAmount();
     } catch (err) {
