@@ -42,6 +42,13 @@
     border-radius: 12px; padding: 14px 14px; font-size: 16px; outline: none;
   }
   input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  input[type="checkbox"] { width: 20px; height: 20px; flex: 0 0 auto; padding: 0; }
+
+  .reinvest-row { display: none; }
+  .reinvest-row label {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 0;
+    font-size: 14px; color: var(--text); font-weight: 600; cursor: pointer;
+  }
 
   .row { display: flex; gap: 10px; }
   .row > div { flex: 1; }
@@ -139,6 +146,13 @@
       <div class="amount-hint" id="amountHint">Amount: —</div>
     </div>
 
+    <div class="reinvest-row" id="reinvestRow">
+      <label for="isReinvest">
+        <input type="checkbox" id="isReinvest">
+        Dividend reinvestment buy
+      </label>
+    </div>
+
     <div>
       <label for="notes">Notes (optional)</label>
       <input type="text" id="notes" placeholder="e.g. loss-harvest, gold glide tranche 1">
@@ -168,11 +182,19 @@
   // default date = today, in the phone's local time
   $("date").value = new Date().toISOString().slice(0, 10);
 
+  const reinvestRow = $("reinvestRow");
+  function updateReinvestVisibility() {
+    reinvestRow.style.display = side === "BUY" ? "block" : "none";
+    if (side !== "BUY") $("isReinvest").checked = false;   // a SELL can't be a reinvestment
+  }
+
   let side = "BUY";
+  updateReinvestVisibility();
   document.querySelectorAll(".side-toggle button").forEach((btn) => {
     btn.addEventListener("click", () => {
       side = btn.dataset.side;
       document.querySelectorAll(".side-toggle button").forEach((b) => b.classList.toggle("active", b === btn));
+      updateReinvestVisibility();
     });
   });
 
@@ -209,6 +231,7 @@
       price: price,
       amount: qty * price,
       notes: $("notes").value.trim(),
+      purpose: (side === "BUY" && $("isReinvest").checked) ? "dividend_reinvest" : "",
     };
 
     submitBtn.disabled = true;
@@ -227,6 +250,7 @@
       $("account").value = OWNER_ACCOUNT[$("owner").value];
       side = "BUY";
       document.querySelectorAll(".side-toggle button").forEach((b) => b.classList.toggle("active", b.dataset.side === "BUY"));
+      updateReinvestVisibility();
       updateAmount();
     } catch (err) {
       showStatus("err", "Failed to submit — check your connection and try again. (" + err.message + ")");
