@@ -44,8 +44,8 @@
   input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   input[type="checkbox"] { width: 20px; height: 20px; flex: 0 0 auto; padding: 0; }
 
-  .reinvest-row, .loan-capital-row, .wint-deploy-row { display: none; }
-  .reinvest-row label, .loan-capital-row > label, .wint-deploy-row label {
+  .reinvest-row, .loan-capital-row, .wint-deploy-row, .backlog-c-row { display: none; }
+  .reinvest-row label, .loan-capital-row > label, .wint-deploy-row label, .backlog-c-row label {
     display: flex; align-items: center; gap: 10px; margin-bottom: 0;
     font-size: 14px; color: var(--text); font-weight: 600; cursor: pointer;
   }
@@ -184,6 +184,13 @@
           Funded by Wint-interest pool (Punitha)
         </label>
       </div>
+
+      <div class="backlog-c-row" id="backlogCRow">
+        <label for="isBacklogC">
+          <input type="checkbox" id="isBacklogC">
+          Rebuild toward Backlog C
+        </label>
+      </div>
     </div>
 
     <div id="emiFields" style="display:none">
@@ -275,30 +282,41 @@
   const loanCapitalRow = $("loanCapitalRow");
   const loanCapitalSelect = $("loanCapitalId");
   const wintDeployRow = $("wintDeployRow");
+  const backlogCRow = $("backlogCRow");
+  const BACKLOG_C_OWNERS = ["Charles", "Punitha"];   // pooled rebuild -- only these two contribute
   function updateReinvestVisibility() {
+    const isBacklogCOwner = BACKLOG_C_OWNERS.includes($("owner").value);
     reinvestRow.style.display = side === "BUY" ? "block" : "none";
     loanCapitalRow.style.display = side === "BUY" ? "block" : "none";
     wintDeployRow.style.display = side === "BUY" ? "block" : "none";
+    backlogCRow.style.display = (side === "BUY" && isBacklogCOwner) ? "block" : "none";
     if (side !== "BUY") {
       $("isReinvest").checked = false;      // a SELL can't be a reinvestment
       $("isLoanCapital").checked = false;   // or a loan-capital deploy
       $("isWintDeploy").checked = false;    // or a Wint-interest-pool deploy
+      $("isBacklogC").checked = false;      // or a Backlog-C rebuild
       loanCapitalSelect.style.display = "none";
+    } else if (!isBacklogCOwner) {
+      $("isBacklogC").checked = false;      // Calvin/Cassandra never fund the pooled rebuild
     }
   }
   // Only one funding-source tag per trade -- ticking one clears the others, since purpose is a
-  // single value (dividend_reinvest / loan_capital_A/B / wint_interest_deploy can't overlap for
-  // the same BUY).
+  // single value (dividend_reinvest / loan_capital_A/B / wint_interest_deploy / backlog_c_rebuild
+  // can't overlap for the same BUY).
   $("isReinvest").addEventListener("change", () => {
-    if ($("isReinvest").checked) { $("isLoanCapital").checked = false; $("isWintDeploy").checked = false; }
+    if ($("isReinvest").checked) { $("isLoanCapital").checked = false; $("isWintDeploy").checked = false; $("isBacklogC").checked = false; }
     loanCapitalSelect.style.display = $("isLoanCapital").checked ? "block" : "none";
   });
   $("isLoanCapital").addEventListener("change", () => {
-    if ($("isLoanCapital").checked) { $("isReinvest").checked = false; $("isWintDeploy").checked = false; }
+    if ($("isLoanCapital").checked) { $("isReinvest").checked = false; $("isWintDeploy").checked = false; $("isBacklogC").checked = false; }
     loanCapitalSelect.style.display = $("isLoanCapital").checked ? "block" : "none";
   });
   $("isWintDeploy").addEventListener("change", () => {
-    if ($("isWintDeploy").checked) { $("isReinvest").checked = false; $("isLoanCapital").checked = false; }
+    if ($("isWintDeploy").checked) { $("isReinvest").checked = false; $("isLoanCapital").checked = false; $("isBacklogC").checked = false; }
+    loanCapitalSelect.style.display = $("isLoanCapital").checked ? "block" : "none";
+  });
+  $("isBacklogC").addEventListener("change", () => {
+    if ($("isBacklogC").checked) { $("isReinvest").checked = false; $("isLoanCapital").checked = false; $("isWintDeploy").checked = false; }
     loanCapitalSelect.style.display = $("isLoanCapital").checked ? "block" : "none";
   });
 
@@ -314,6 +332,7 @@
 
   $("owner").addEventListener("change", () => {
     $("account").value = OWNER_ACCOUNT[$("owner").value] || $("account").value;
+    updateReinvestVisibility();
   });
 
   function updateAmount() {
@@ -354,6 +373,7 @@
         purpose: (side === "BUY" && $("isReinvest").checked) ? "dividend_reinvest"
                 : (side === "BUY" && $("isLoanCapital").checked) ? "loan_capital_" + loanCapitalSelect.value
                 : (side === "BUY" && $("isWintDeploy").checked) ? "wint_interest_deploy"
+                : (side === "BUY" && $("isBacklogC").checked) ? "backlog_c_rebuild"
                 : "",
       };
       successMsg = `Logged: ${payload.side} ${payload.qty} ${payload.symbol} @${payload.price}`;

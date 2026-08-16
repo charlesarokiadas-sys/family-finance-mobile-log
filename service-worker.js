@@ -1,7 +1,7 @@
 // Minimal service worker — just enough for "Add to Home Screen" installability and a basic
 // offline-loads-the-shell experience. The actual submit still needs a live connection (it
 // posts straight to the Apps Script endpoint); this only caches the static form itself.
-const CACHE = "log-trade-v5";
+const CACHE = "log-trade-v6";
 const SHELL = ["./", "./index.html", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", (event) => {
