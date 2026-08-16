@@ -44,8 +44,8 @@
   input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   input[type="checkbox"] { width: 20px; height: 20px; flex: 0 0 auto; padding: 0; }
 
-  .reinvest-row, .loan-capital-row { display: none; }
-  .reinvest-row label, .loan-capital-row > label {
+  .reinvest-row, .loan-capital-row, .wint-deploy-row { display: none; }
+  .reinvest-row label, .loan-capital-row > label, .wint-deploy-row label {
     display: flex; align-items: center; gap: 10px; margin-bottom: 0;
     font-size: 14px; color: var(--text); font-weight: 600; cursor: pointer;
   }
@@ -177,6 +177,13 @@
           <option value="B">Loan B (ICICI liquid)</option>
         </select>
       </div>
+
+      <div class="wint-deploy-row" id="wintDeployRow">
+        <label for="isWintDeploy">
+          <input type="checkbox" id="isWintDeploy">
+          Funded by Wint-interest pool (Punitha)
+        </label>
+      </div>
     </div>
 
     <div id="emiFields" style="display:none">
@@ -267,23 +274,31 @@
   const reinvestRow = $("reinvestRow");
   const loanCapitalRow = $("loanCapitalRow");
   const loanCapitalSelect = $("loanCapitalId");
+  const wintDeployRow = $("wintDeployRow");
   function updateReinvestVisibility() {
     reinvestRow.style.display = side === "BUY" ? "block" : "none";
     loanCapitalRow.style.display = side === "BUY" ? "block" : "none";
+    wintDeployRow.style.display = side === "BUY" ? "block" : "none";
     if (side !== "BUY") {
       $("isReinvest").checked = false;      // a SELL can't be a reinvestment
       $("isLoanCapital").checked = false;   // or a loan-capital deploy
+      $("isWintDeploy").checked = false;    // or a Wint-interest-pool deploy
       loanCapitalSelect.style.display = "none";
     }
   }
-  // Only one funding-source tag per trade -- ticking one clears the other, since purpose is a
-  // single value (dividend_reinvest vs loan_capital_A/B can't both be true for the same BUY).
+  // Only one funding-source tag per trade -- ticking one clears the others, since purpose is a
+  // single value (dividend_reinvest / loan_capital_A/B / wint_interest_deploy can't overlap for
+  // the same BUY).
   $("isReinvest").addEventListener("change", () => {
-    if ($("isReinvest").checked) $("isLoanCapital").checked = false;
+    if ($("isReinvest").checked) { $("isLoanCapital").checked = false; $("isWintDeploy").checked = false; }
     loanCapitalSelect.style.display = $("isLoanCapital").checked ? "block" : "none";
   });
   $("isLoanCapital").addEventListener("change", () => {
-    if ($("isLoanCapital").checked) $("isReinvest").checked = false;
+    if ($("isLoanCapital").checked) { $("isReinvest").checked = false; $("isWintDeploy").checked = false; }
+    loanCapitalSelect.style.display = $("isLoanCapital").checked ? "block" : "none";
+  });
+  $("isWintDeploy").addEventListener("change", () => {
+    if ($("isWintDeploy").checked) { $("isReinvest").checked = false; $("isLoanCapital").checked = false; }
     loanCapitalSelect.style.display = $("isLoanCapital").checked ? "block" : "none";
   });
 
@@ -338,6 +353,7 @@
         notes: $("notes").value.trim(),
         purpose: (side === "BUY" && $("isReinvest").checked) ? "dividend_reinvest"
                 : (side === "BUY" && $("isLoanCapital").checked) ? "loan_capital_" + loanCapitalSelect.value
+                : (side === "BUY" && $("isWintDeploy").checked) ? "wint_interest_deploy"
                 : "",
       };
       successMsg = `Logged: ${payload.side} ${payload.qty} ${payload.symbol} @${payload.price}`;
