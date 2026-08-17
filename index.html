@@ -42,14 +42,21 @@
     border-radius: 12px; padding: 14px 14px; font-size: 16px; outline: none;
   }
   input:focus, select:focus, textarea:focus { border-color: var(--accent); }
-  input[type="checkbox"] { width: 20px; height: 20px; flex: 0 0 auto; padding: 0; }
+  input[type="checkbox"], input[type="radio"] { width: 20px; height: 20px; flex: 0 0 auto; padding: 0; }
 
-  .reinvest-row, .loan-capital-row, .wint-deploy-row, .backlog-c-row { display: none; }
-  .reinvest-row label, .loan-capital-row > label, .wint-deploy-row label, .backlog-c-row label {
+  .purpose-group {
+    border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin: 0;
+  }
+  .purpose-group legend {
+    font-size: 13px; color: var(--muted); font-weight: 600; padding: 0 4px;
+  }
+  .purpose-option { display: none; }
+  .purpose-option:not(:last-child) { margin-bottom: 12px; }
+  .purpose-option label {
     display: flex; align-items: center; gap: 10px; margin-bottom: 0;
     font-size: 14px; color: var(--text); font-weight: 600; cursor: pointer;
   }
-  .loan-capital-select { display: none; margin-top: 10px; }
+  .loan-capital-select { display: none; margin-top: 10px; margin-left: 30px; }
 
   .row { display: flex; gap: 10px; }
   .row > div { flex: 1; }
@@ -160,37 +167,48 @@
         <div class="amount-hint" id="amountHint">Amount: —</div>
       </div>
 
-      <div class="reinvest-row" id="reinvestRow">
-        <label for="isReinvest">
-          <input type="checkbox" id="isReinvest">
-          Dividend reinvestment buy
-        </label>
-      </div>
+      <fieldset class="purpose-group" id="purposeGroup">
+        <legend>Funding source — pick one</legend>
 
-      <div class="loan-capital-row" id="loanCapitalRow">
-        <label for="isLoanCapital">
-          <input type="checkbox" id="isLoanCapital">
-          Funded by loan-capital parking (Punitha)
-        </label>
-        <select class="loan-capital-select" id="loanCapitalId">
-          <option value="A">Loan A (Axis liquid)</option>
-          <option value="B">Loan B (ICICI liquid)</option>
-        </select>
-      </div>
+        <div class="purpose-option" id="normalRow">
+          <label for="purposeNormal">
+            <input type="radio" name="purpose" id="purposeNormal" value="normal">
+            Normal buy
+          </label>
+        </div>
 
-      <div class="wint-deploy-row" id="wintDeployRow">
-        <label for="isWintDeploy">
-          <input type="checkbox" id="isWintDeploy">
-          Funded by Wint-interest pool (Punitha)
-        </label>
-      </div>
+        <div class="purpose-option" id="reinvestRow">
+          <label for="purposeReinvest">
+            <input type="radio" name="purpose" id="purposeReinvest" value="dividend_reinvest">
+            Dividend reinvestment buy
+          </label>
+        </div>
 
-      <div class="backlog-c-row" id="backlogCRow">
-        <label for="isBacklogC">
-          <input type="checkbox" id="isBacklogC">
-          Rebuild toward Backlog C
-        </label>
-      </div>
+        <div class="purpose-option" id="loanCapitalRow">
+          <label for="purposeLoanCapital">
+            <input type="radio" name="purpose" id="purposeLoanCapital" value="loan_capital">
+            Funded by loan-capital parking (Punitha)
+          </label>
+          <select class="loan-capital-select" id="loanCapitalId">
+            <option value="A">Loan A (Axis liquid)</option>
+            <option value="B">Loan B (ICICI liquid)</option>
+          </select>
+        </div>
+
+        <div class="purpose-option" id="wintDeployRow">
+          <label for="purposeWintDeploy">
+            <input type="radio" name="purpose" id="purposeWintDeploy" value="wint_interest_deploy">
+            Funded by Wint-interest pool (Punitha)
+          </label>
+        </div>
+
+        <div class="purpose-option" id="backlogCRow">
+          <label for="purposeBacklogC">
+            <input type="radio" name="purpose" id="purposeBacklogC" value="backlog_c_rebuild">
+            Rebuild toward Backlog C
+          </label>
+        </div>
+      </fieldset>
     </div>
 
     <div id="emiFields" style="display:none">
@@ -278,55 +296,52 @@
     });
   });
 
+  const normalRow = $("normalRow");
   const reinvestRow = $("reinvestRow");
   const loanCapitalRow = $("loanCapitalRow");
   const loanCapitalSelect = $("loanCapitalId");
   const wintDeployRow = $("wintDeployRow");
   const backlogCRow = $("backlogCRow");
+  const purposeGroup = $("purposeGroup");
+  const purposeRadios = () => Array.from(document.querySelectorAll('input[name="purpose"]'));
+  const checkedPurpose = () => document.querySelector('input[name="purpose"]:checked');
   const BACKLOG_C_OWNERS = ["Charles", "Punitha"];   // pooled rebuild -- only these two contribute
   const PUNITHA_ONLY_OWNERS = ["Punitha"];   // both the loan-capital and Wint-interest pools are hers alone
+  // A radio's row can go hidden (owner switched away) while it's still the checked one -- clear it
+  // so a stale hidden choice can't silently ride along; a fresh explicit pick is required after.
+  function hideRow(rowEl, radioEl) {
+    rowEl.style.display = "none";
+    if (radioEl.checked) radioEl.checked = false;
+  }
   function updateReinvestVisibility() {
     const isBacklogCOwner = BACKLOG_C_OWNERS.includes($("owner").value);
     const isPunithaOwner = PUNITHA_ONLY_OWNERS.includes($("owner").value);
-    reinvestRow.style.display = side === "BUY" ? "block" : "none";
-    loanCapitalRow.style.display = (side === "BUY" && isPunithaOwner) ? "block" : "none";
-    wintDeployRow.style.display = (side === "BUY" && isPunithaOwner) ? "block" : "none";
-    backlogCRow.style.display = (side === "BUY" && isBacklogCOwner) ? "block" : "none";
+    purposeGroup.style.display = side === "BUY" ? "block" : "none";
     if (side !== "BUY") {
-      $("isReinvest").checked = false;      // a SELL can't be a reinvestment
-      $("isLoanCapital").checked = false;   // or a loan-capital deploy
-      $("isWintDeploy").checked = false;    // or a Wint-interest-pool deploy
-      $("isBacklogC").checked = false;      // or a Backlog-C rebuild
+      purposeRadios().forEach((r) => (r.checked = false));   // a SELL funds nothing
       loanCapitalSelect.style.display = "none";
+      return;
+    }
+    normalRow.style.display = "block";
+    reinvestRow.style.display = "block";
+    if (isPunithaOwner) {
+      loanCapitalRow.style.display = "block";
+      wintDeployRow.style.display = "block";
     } else {
-      if (!isPunithaOwner) {
-        $("isLoanCapital").checked = false;   // loan-capital/Wint pools are Punitha-only
-        $("isWintDeploy").checked = false;
-        loanCapitalSelect.style.display = "none";
-      }
-      if (!isBacklogCOwner) {
-        $("isBacklogC").checked = false;      // Calvin/Cassandra never fund the pooled rebuild
-      }
+      hideRow(loanCapitalRow, $("purposeLoanCapital"));
+      hideRow(wintDeployRow, $("purposeWintDeploy"));
+      loanCapitalSelect.style.display = "none";
+    }
+    if (isBacklogCOwner) {
+      backlogCRow.style.display = "block";
+    } else {
+      hideRow(backlogCRow, $("purposeBacklogC"));
     }
   }
-  // Only one funding-source tag per trade -- ticking one clears the others, since purpose is a
-  // single value (dividend_reinvest / loan_capital_A/B / wint_interest_deploy / backlog_c_rebuild
-  // can't overlap for the same BUY).
-  $("isReinvest").addEventListener("change", () => {
-    if ($("isReinvest").checked) { $("isLoanCapital").checked = false; $("isWintDeploy").checked = false; $("isBacklogC").checked = false; }
-    loanCapitalSelect.style.display = $("isLoanCapital").checked ? "block" : "none";
-  });
-  $("isLoanCapital").addEventListener("change", () => {
-    if ($("isLoanCapital").checked) { $("isReinvest").checked = false; $("isWintDeploy").checked = false; $("isBacklogC").checked = false; }
-    loanCapitalSelect.style.display = $("isLoanCapital").checked ? "block" : "none";
-  });
-  $("isWintDeploy").addEventListener("change", () => {
-    if ($("isWintDeploy").checked) { $("isReinvest").checked = false; $("isLoanCapital").checked = false; $("isBacklogC").checked = false; }
-    loanCapitalSelect.style.display = $("isLoanCapital").checked ? "block" : "none";
-  });
-  $("isBacklogC").addEventListener("change", () => {
-    if ($("isBacklogC").checked) { $("isReinvest").checked = false; $("isLoanCapital").checked = false; $("isWintDeploy").checked = false; }
-    loanCapitalSelect.style.display = $("isLoanCapital").checked ? "block" : "none";
+  purposeRadios().forEach((r) => {
+    r.addEventListener("change", () => {
+      loanCapitalSelect.style.display = $("purposeLoanCapital").checked ? "block" : "none";
+    });
   });
 
   let side = "BUY";
@@ -367,6 +382,15 @@
         showStatus("err", "Symbol is required.");
         return;
       }
+      let purpose = "";
+      if (side === "BUY") {
+        const picked = checkedPurpose();
+        if (!picked) {
+          showStatus("err", "Choose what this buy is funding (e.g. Normal buy).");
+          return;
+        }
+        purpose = picked.value === "loan_capital" ? "loan_capital_" + loanCapitalSelect.value : picked.value;
+      }
       const qty = parseFloat($("qty").value), price = parseFloat($("price").value);
       payload = {
         token: TOKEN,
@@ -379,11 +403,7 @@
         price: price,
         amount: qty * price,
         notes: $("notes").value.trim(),
-        purpose: (side === "BUY" && $("isReinvest").checked) ? "dividend_reinvest"
-                : (side === "BUY" && $("isLoanCapital").checked) ? "loan_capital_" + loanCapitalSelect.value
-                : (side === "BUY" && $("isWintDeploy").checked) ? "wint_interest_deploy"
-                : (side === "BUY" && $("isBacklogC").checked) ? "backlog_c_rebuild"
-                : "",
+        purpose: purpose,
       };
       successMsg = `Logged: ${payload.side} ${payload.qty} ${payload.symbol} @${payload.price}`;
     } else if (mode === "emi") {
@@ -421,7 +441,7 @@
       $("account").value = OWNER_ACCOUNT[$("owner").value];
       side = "BUY";
       document.querySelectorAll("#sideField .side-toggle button").forEach((b) => b.classList.toggle("active", b.dataset.side === "BUY"));
-      loanCapitalSelect.style.display = "none";   // form.reset() unchecks isLoanCapital but fires no 'change' event
+      loanCapitalSelect.style.display = "none";   // form.reset() unchecks the radios but fires no 'change' event
       updateReinvestVisibility();
       updateAmount();
     } catch (err) {
