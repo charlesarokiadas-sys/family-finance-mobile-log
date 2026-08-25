@@ -108,6 +108,7 @@
           <button type="button" data-mode="trade" class="active">Trade</button>
           <button type="button" data-mode="emi">EMI payment</button>
           <button type="button" data-mode="confirm">Confirm parked</button>
+          <button type="button" data-mode="moneyin">Money in</button>
         </div>
       </div>
     </div>
@@ -147,6 +148,18 @@
         </div>
       </div>
 
+      <!-- CE8866 is the only account where owner does not settle whose money it is: Punitha's
+           demat holds both her personal money and the rest of the family's. Without this the
+           portfolio was guessed from a fixed symbol list, which got it wrong the moment Rest of
+           the Family bought gold or Punitha bought anything new. -->
+      <div id="portfolioField" style="display:none">
+        <label for="portfolio">Whose money?</label>
+        <select id="portfolio">
+          <option value="REST_OF_FAMILY">Rest of the family</option>
+          <option value="PUNITHA_PERSONAL">Punitha's own money</option>
+        </select>
+      </div>
+
       <div>
         <label for="symbol">Symbol</label>
         <input type="text" id="symbol" placeholder="e.g. HDFCBANK" autocapitalize="characters">
@@ -168,7 +181,7 @@
       </div>
 
       <fieldset class="purpose-group" id="purposeGroup">
-        <legend>Funding source — pick one</legend>
+        <legend id="purposeLegend">Funding source — pick one</legend>
 
         <div class="purpose-option" id="normalRow">
           <label for="purposeNormal">
@@ -202,10 +215,26 @@
           </label>
         </div>
 
+        <div class="purpose-option" id="punithaCorpusRow">
+          <label for="purposePunithaCorpus">
+            <input type="radio" name="purpose" id="purposePunithaCorpus" value="punitha_corpus_deploy">
+            Funded by Punitha's own money (Axis liquid)
+          </label>
+        </div>
+
         <div class="purpose-option" id="backlogCRow">
           <label for="purposeBacklogC">
             <input type="radio" name="purpose" id="purposeBacklogC" value="backlog_c_rebuild">
             Rebuild toward Backlog C
+          </label>
+        </div>
+        <!-- The rejig is its own pile, separate from Backlog C (REQ-3 item 22). Until now it was
+             tagged only by typing "Rejig" into the notes box, where a typo would have dropped the
+             trade out of the pile without anything noticing. -->
+        <div class="purpose-option" id="rejigRow">
+          <label for="purposeRejig">
+            <input type="radio" name="purpose" id="purposeRejig" value="rejig">
+            Rejig — putting back what was sold in the clean-out
           </label>
         </div>
       </fieldset>
@@ -225,6 +254,42 @@
           <input type="number" id="emiAmount" inputmode="decimal" min="0" step="any" placeholder="standard EMI">
         </div>
       </div>
+    </div>
+
+    <div id="moneyInFields" style="display:none">
+      <div class="row">
+        <div>
+          <label for="moneyKind">What arrived</label>
+          <select id="moneyKind">
+            <option value="external_in">Money from outside (e.g. from Punitha's mother)</option>
+            <option value="wint_coupon">Wint coupon</option>
+            <option value="wint_maturity">Wint sleeve matured (capital back)</option>
+            <option value="sgb_interest">SGB interest</option>
+            <option value="dividend">Dividend</option>
+          </select>
+        </div>
+        <div>
+          <label for="moneyPortfolio">Whose money</label>
+          <select id="moneyPortfolio">
+            <option value="PUNITHA_PERSONAL">Punitha's own money</option>
+            <option value="REST_OF_FAMILY">Rest of the family</option>
+            <option value="CALVIN">Calvin</option>
+            <option value="CASSANDRA">Cassandra</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="moneyAmount">Amount received</label>
+          <input type="number" id="moneyAmount" inputmode="decimal" min="0" step="any">
+        </div>
+        <div>
+          <label for="moneyRef">Where from (optional)</label>
+          <input type="text" id="moneyRef" placeholder="issuer, scrip, or who paid">
+        </div>
+      </div>
+      <div class="amount-hint">Log it the day it lands. Everything here is money that has to go
+        back into the market — it joins what is waiting to be deployed.</div>
     </div>
 
     <div id="confirmFields" style="display:none">
@@ -277,15 +342,18 @@
   const tradeFields = $("tradeFields");
   const emiFields = $("emiFields");
   const confirmFields = $("confirmFields");
+  const moneyInFields = $("moneyInFields");
   const sideField = $("sideField");
   const submitBtn = $("submitBtn");
   let mode = "trade";
-  const SUBMIT_LABEL = { trade: "Log trade", emi: "Log EMI payment", confirm: "Confirm parked" };
+  const SUBMIT_LABEL = { trade: "Log trade", emi: "Log EMI payment",
+                         confirm: "Confirm parked", moneyin: "Log money in" };
   function updateModeVisibility() {
     tradeFields.style.display = mode === "trade" ? "block" : "none";
     sideField.style.display = mode === "trade" ? "block" : "none";
     emiFields.style.display = mode === "emi" ? "block" : "none";
     confirmFields.style.display = mode === "confirm" ? "block" : "none";
+    moneyInFields.style.display = mode === "moneyin" ? "block" : "none";
     submitBtn.textContent = SUBMIT_LABEL[mode];
   }
   document.querySelectorAll("#modeToggle button").forEach((btn) => {
@@ -301,7 +369,9 @@
   const loanCapitalRow = $("loanCapitalRow");
   const loanCapitalSelect = $("loanCapitalId");
   const wintDeployRow = $("wintDeployRow");
+  const punithaCorpusRow = $("punithaCorpusRow");
   const backlogCRow = $("backlogCRow");
+  const rejigRow = $("rejigRow");
   const purposeGroup = $("purposeGroup");
   const purposeRadios = () => Array.from(document.querySelectorAll('input[name="purpose"]'));
   const checkedPurpose = () => document.querySelector('input[name="purpose"]:checked');
@@ -316,20 +386,38 @@
   function updateReinvestVisibility() {
     const isBacklogCOwner = BACKLOG_C_OWNERS.includes($("owner").value);
     const isPunithaOwner = PUNITHA_ONLY_OWNERS.includes($("owner").value);
-    purposeGroup.style.display = side === "BUY" ? "block" : "none";
+    purposeGroup.style.display = "block";
+    // A SELL funds nothing, so every purpose that names a funding source is hidden on one --
+    // EXCEPT Rejig, which is not a funding source. It marks both sides of the clean-out, and the
+    // SELL side is what creates the pile: seven of the twelve rejig trades so far are sales. Hide
+    // it here and a rejig sale logged from the phone drops out of the pile with nothing to say so.
     if (side !== "BUY") {
-      purposeRadios().forEach((r) => (r.checked = false));   // a SELL funds nothing
+      purposeRadios().forEach((r) => {
+        if (r.value !== "rejig") r.checked = false;
+      });
+      normalRow.style.display = "none";
+      reinvestRow.style.display = "none";
+      hideRow(loanCapitalRow, $("purposeLoanCapital"));
+      hideRow(wintDeployRow, $("purposeWintDeploy"));
+      hideRow(punithaCorpusRow, $("purposePunithaCorpus"));
+      hideRow(backlogCRow, $("purposeBacklogC"));
+      rejigRow.style.display = "block";
       loanCapitalSelect.style.display = "none";
+      $("purposeLegend").textContent = "Part of the rejig? — optional";
       return;
     }
+    $("purposeLegend").textContent = "Funding source — pick one";
+    rejigRow.style.display = "block";
     normalRow.style.display = "block";
     reinvestRow.style.display = "block";
     if (isPunithaOwner) {
       loanCapitalRow.style.display = "block";
       wintDeployRow.style.display = "block";
+      punithaCorpusRow.style.display = "block";
     } else {
       hideRow(loanCapitalRow, $("purposeLoanCapital"));
       hideRow(wintDeployRow, $("purposeWintDeploy"));
+      hideRow(punithaCorpusRow, $("purposePunithaCorpus"));
       loanCapitalSelect.style.display = "none";
     }
     if (isBacklogCOwner) {
@@ -354,10 +442,21 @@
     });
   });
 
+  // Ask whose money it is only where the answer is not already known. ZV3166 is settled by the
+  // Owner field (Charles or Calvin), MNS232 is Cassandra's alone -- CE8866 is the one that holds
+  // two people's money at once.
+  function updatePortfolioVisibility() {
+    const ambiguous = $("account").value === "CE8866";
+    $("portfolioField").style.display = ambiguous ? "" : "none";
+  }
+
   $("owner").addEventListener("change", () => {
     $("account").value = OWNER_ACCOUNT[$("owner").value] || $("account").value;
     updateReinvestVisibility();
+    updatePortfolioVisibility();
   });
+  $("account").addEventListener("change", updatePortfolioVisibility);
+  updatePortfolioVisibility();
 
   function updateAmount() {
     const qty = parseFloat($("qty").value), price = parseFloat($("price").value);
@@ -383,13 +482,18 @@
         return;
       }
       let purpose = "";
+      const picked = checkedPurpose();
       if (side === "BUY") {
-        const picked = checkedPurpose();
         if (!picked) {
           showStatus("err", "Choose what this buy is funding (e.g. Normal buy).");
           return;
         }
         purpose = picked.value === "loan_capital" ? "loan_capital_" + loanCapitalSelect.value : picked.value;
+      } else if (picked && picked.value === "rejig") {
+        // The only purpose a SELL can carry. It is not a funding source -- it marks the sale as
+        // part of the clean-out, which is what puts the proceeds into the rejig pile. Optional,
+        // because most sales are not rejig sales.
+        purpose = "rejig";
       }
       const qty = parseFloat($("qty").value), price = parseFloat($("price").value);
       payload = {
@@ -404,6 +508,8 @@
         amount: qty * price,
         notes: $("notes").value.trim(),
         purpose: purpose,
+        // Blank for the unambiguous accounts; the pull derives those from owner.
+        portfolio: $("account").value === "CE8866" ? $("portfolio").value : "",
       };
       successMsg = `Logged: ${payload.side} ${payload.qty} ${payload.symbol} @${payload.price}`;
     } else if (mode === "emi") {
@@ -415,6 +521,23 @@
         amount: $("emiAmount").value ? parseFloat($("emiAmount").value) : "",
       };
       successMsg = `Logged: Loan ${payload.loan_id} EMI paid ${payload.paid_date}`;
+    } else if (mode === "moneyin") {
+      const amount = parseFloat($("moneyAmount").value);
+      if (!(amount > 0)) {
+        showStatus("err", "Enter the amount received.");
+        return;
+      }
+      payload = {
+        token: TOKEN,
+        action: "addMoneyIn",
+        date: $("date").value,
+        kind: $("moneyKind").value,
+        portfolio: $("moneyPortfolio").value,
+        amount: amount,
+        ref: $("moneyRef").value.trim(),
+        notes: $("notes").value.trim(),
+      };
+      successMsg = `Logged: ${payload.kind} ₹${payload.amount} (${payload.portfolio})`;
     } else {
       payload = {
         token: TOKEN,
