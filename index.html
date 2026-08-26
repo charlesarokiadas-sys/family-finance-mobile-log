@@ -257,6 +257,36 @@
     </div>
 
     <div id="moneyInFields" style="display:none">
+      <!-- Wint coupons get a picker of what is OUTSTANDING, not a list of sleeves. It answers
+           Charles's question -- "since the baseline is not complete how will i know the missing
+           interest?" -- by making the thing he has to enter and the thing he is missing the same
+           list. Loaded from the Apps Script -- see loadSleeves() for why it cannot be a file
+           served from this page's own host. -->
+      <div id="wintPickerRow" style="display:none">
+        <label for="wintPicker">Which coupon</label>
+        <select id="wintPicker"><option value="">Loading…</option></select>
+        <div class="amount-hint" id="wintPickerHint"></div>
+      </div>
+      <div id="wintManualRow" style="display:none">
+        <div class="row">
+          <div>
+            <label for="wintIssuer">Sleeve</label>
+            <select id="wintIssuer"></select>
+          </div>
+          <div>
+            <label for="wintDueMonth">Which month's coupon</label>
+            <input type="month" id="wintDueMonth">
+          </div>
+        </div>
+      </div>
+      <div id="wintDupWarn" class="amount-hint"
+           style="display:none;border-left:3px solid #c60;padding-left:.6rem">
+        <strong>Already logged.</strong> <span id="wintDupText"></span>
+        <div class="side-toggle" style="margin-top:.4rem">
+          <button type="button" id="wintReplace">Replace it</button>
+          <button type="button" id="wintAddSecond">Add a second credit</button>
+        </div>
+      </div>
       <div class="row">
         <div>
           <label for="moneyKind">What arrived</label>
@@ -467,6 +497,137 @@
   $("qty").addEventListener("input", updateAmount);
   $("price").addEventListener("input", updateAmount);
 
+  // ---------------------------------------------------------------- Wint coupon picker ----
+  // The dropdown is the reason the dictionary problem is gone. Charles picks an issuer name that
+  // came OUT of the schedule, and that same string is recorded back, so matching a credit to the
+  // coupon it settles is exact string equality rather than inference. No payer vocabulary, no
+  // servicer aliases, nothing to go stale when a new sleeve is bought.
+  let SLEEVES = { outstanding: [], issuers: {} };
+  let wintMode = "";          // "", "replace" or "second" -- set only by the duplicate prompt
+
+  // Fetched from the Apps Script, NOT from a file next to this page. This form is served from a
+  // public GitHub Pages repo, and the outstanding list is financial data -- whose money, which
+  // bond, how much, when. A sleeves.json sitting beside index.html would have had to be published
+  // there to reach the phone. The Apps Script is private and token-checked, and this page already
+  // posts to it, so the list comes back down the same channel.
+  //
+  // Cached in localStorage so the screen still works with no signal, which is where a bank
+  // statement actually gets read. Stale-but-present beats empty: a coupon already logged just
+  // shows up as still outstanding until the next successful fetch.
+  const SLEEVES_CACHE = "wint_schedule_cache_v1";
+
+  async function loadSleeves() {
+    try {
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },   // avoids the CORS preflight
+        body: JSON.stringify({ token: TOKEN, action: "getSchedule" }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      SLEEVES = data.schedule || { outstanding: [], issuers: {} };
+      try { localStorage.setItem(SLEEVES_CACHE, JSON.stringify(SLEEVES)); } catch (e) { /* full */ }
+    } catch (e) {
+      try {
+        SLEEVES = JSON.parse(localStorage.getItem(SLEEVES_CACHE)) || { outstanding: [], issuers: {} };
+      } catch (e2) {
+        SLEEVES = { outstanding: [], issuers: {} };   // never fetched: manual entry still works
+      }
+    }
+    const sel = $("wintPicker");
+    sel.innerHTML = "";
+    const none = document.createElement("option");
+    none.value = ""; none.textContent = SLEEVES.outstanding.length
+      ? `— pick one of ${SLEEVES.outstanding.length} outstanding —` : "— none outstanding —";
+    sel.appendChild(none);
+    SLEEVES.outstanding.forEach((o, i) => {
+      const opt = document.createElement("option");
+      opt.value = String(i);
+      const exp = o.expected_net ? ` · ~₹${Number(o.expected_net).toFixed(2)}` : "";
+      opt.textContent = `${o.owner} · ${o.issuer} · due ${o.due_date}${exp}`;
+      sel.appendChild(opt);
+    });
+    const other = document.createElement("option");
+    other.value = "other"; other.textContent = "Something else (not on the list)";
+    sel.appendChild(other);
+
+    const iss = $("wintIssuer");
+    iss.innerHTML = "";
+    Object.entries(SLEEVES.issuers || {}).forEach(([pid, names]) => {
+      names.forEach((n) => {
+        const o = document.createElement("option");
+        o.value = pid + "|" + n; o.textContent = `${pid} · ${n}`;
+        iss.appendChild(o);
+      });
+    });
+  }
+
+  function wintSelection() {
+    // What the form is currently claiming: portfolio, issuer, due month.
+    const v = $("wintPicker").value;
+    if (v === "other" || v === "") {
+      const [pid, name] = ($("wintIssuer").value || "|").split("|");
+      return { portfolio: pid, issuer: name, due_month: $("wintDueMonth").value, listed: false };
+    }
+    const o = SLEEVES.outstanding[Number(v)];
+    return { portfolio: o.portfolio_id, issuer: o.issuer, due_month: o.due_month,
+             due_date: o.due_date, expected: o.expected_net, listed: true };
+  }
+
+  function refreshWintUI() {
+    const isCoupon = $("moneyKind").value === "wint_coupon";
+    $("wintPickerRow").style.display = isCoupon ? "" : "none";
+    const manual = isCoupon && $("wintPicker").value === "other";
+    $("wintManualRow").style.display = manual ? "" : "none";
+    if (!isCoupon) { $("wintDupWarn").style.display = "none"; wintMode = ""; return; }
+
+    const sel = wintSelection();
+    if (sel.listed) {
+      // Picking from the outstanding list fills everything in; nothing to warn about, because
+      // being ON that list is precisely what "not yet logged" means.
+      $("moneyPortfolio").value = sel.portfolio;
+      $("moneyRef").value = sel.issuer;
+      if (sel.due_date) $("date").value = sel.due_date;
+      $("wintPickerHint").textContent = sel.expected
+        ? `Wint expected about ₹${Number(sel.expected).toFixed(2)} — enter what the bank actually credited.`
+        : "Enter what the bank actually credited.";
+      $("wintDupWarn").style.display = "none";
+      wintMode = "";
+      return;
+    }
+    $("wintPickerHint").textContent = "";
+    if (sel.portfolio) $("moneyPortfolio").value = sel.portfolio;
+    if (sel.issuer) $("moneyRef").value = sel.issuer;
+
+    // "Something else" for a coupon that is NOT outstanding means one is already recorded for that
+    // sleeve and month. Charles is asked which he means -- never blocked, because a genuine second
+    // credit happens (a late payment, an issuer settling in two goes), and never silently doubled.
+    const stillOutstanding = SLEEVES.outstanding.some(
+      (o) => o.portfolio_id === sel.portfolio && o.issuer === sel.issuer
+             && o.due_month === sel.due_month);
+    const known = sel.portfolio && sel.issuer && sel.due_month;
+    if (known && !stillOutstanding) {
+      $("wintDupText").textContent =
+        `${sel.issuer}, ${sel.due_month}, already has a credit recorded.`;
+      $("wintDupWarn").style.display = "";
+    } else {
+      $("wintDupWarn").style.display = "none";
+      wintMode = "";
+    }
+  }
+
+  ["moneyKind", "wintPicker", "wintIssuer", "wintDueMonth"].forEach((id) =>
+    $(id).addEventListener("change", refreshWintUI));
+  $("wintReplace").addEventListener("click", () => {
+    wintMode = "replace";
+    $("wintDupText").textContent = "Will REPLACE the recorded credit.";
+  });
+  $("wintAddSecond").addEventListener("click", () => {
+    wintMode = "second";
+    $("wintDupText").textContent = "Will be added as a SECOND credit for that month.";
+  });
+  loadSleeves().then(refreshWintUI);
+
   function showStatus(kind, msg) {
     statusEl.className = "status " + kind;
     statusEl.textContent = msg;
@@ -536,7 +697,19 @@
         amount: amount,
         ref: $("moneyRef").value.trim(),
         notes: $("notes").value.trim(),
+        // entry_id is the idempotency key. A phone on a weak signal retries the POST, and without
+        // this the retry becomes a second coupon -- money doubled by the network rather than by
+        // anyone's decision. Generated per submission, so a DELIBERATE second entry gets its own.
+        entry_id: (crypto.randomUUID ? crypto.randomUUID()
+                                     : String(Date.now()) + Math.random().toString(16).slice(2)),
       };
+      if (payload.kind === "wint_coupon") {
+        const sel = wintSelection();
+        // The DUE month, not the month the money landed in. A 31 Jan coupon paid on 2 Feb settles
+        // January, and carrying that as a fact is what lets it clear from the outstanding list.
+        payload.due_month = sel.due_month || payload.date.slice(0, 7);
+        if (wintMode === "replace") payload.mode = "replace";
+      }
       successMsg = `Logged: ${payload.kind} ₹${payload.amount} (${payload.portfolio})`;
     } else {
       payload = {
